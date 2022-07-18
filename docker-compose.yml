@@ -1,0 +1,89 @@
+version: '3'
+
+services:
+  web:
+    image: php:7.4-fpm-alpine
+    build: ./docker/php_apache/
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html/
+  db:
+    image: mysql:5.7
+    container_name: db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: loveawake
+      MYSQL_USER: loveawake
+      MYSQL_PASSWORD: root
+    ports:
+      - 3307:3306
+    volumes:
+      - ./dump:/docker-entrypoint-initdb.d
+      - ./docker/data:/var/lib/mysql
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: pma
+    links:
+      - db
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+      UPLOAD_LIMIT: 10G
+    restart: always
+    ports:
+      - 8081:80
+  redis:
+    image: redis:latest
+    restart: always
+    ports:
+      - '6380:6379'
+  api:
+    image: node:10.15.3-alpine
+    container_name: tqd-node
+    build: .
+    ports:
+      - 3000:3000
+    environment:
+      - NODE_ENV=local
+      - ES_HOST=elasticsearch
+      - NODE_PORT=3000
+      - ELASTIC_URL=http://elasticsearch:9200
+    volumes:
+      - .:/usr/src/app/quotes
+    command: npm run start
+    links:
+      - elasticsearch
+    depends_on:
+      - elasticsearch
+    networks:
+      - esnet
+  elasticsearch:
+    container_name: tqd-elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.7.1
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    environment:
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - discovery.type=single-node
+    logging:
+      driver: none
+    ports:
+      - 9300:9300
+      - 9200:9200
+    networks:
+      - docker-elk
+  memcached:
+    container_name: memcached
+    image: memcached:latest
+    ports:
+      - "21201:21201"
+networks:
+  docker-elk:
+    driver: bridge
+  esnet:
+volumes:
+  dbdata:
+  esdata:
